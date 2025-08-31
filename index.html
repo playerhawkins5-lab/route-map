@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Route Map</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    #map { height: 100%; width: 100%; }
+    body, html { margin:0; height:100%; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    async function geocode(address) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.length > 0) {
+        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      }
+      return null;
+    }
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const fromAddress = params.get("from") || "New York";
+      const toAddress = params.get("to") || "Boston";
+
+      const fromCoords = await geocode(fromAddress);
+      const toCoords = await geocode(toAddress);
+
+      if (!fromCoords || !toCoords) {
+        alert("Could not geocode one of the addresses!");
+        return;
+      }
+
+      const map = L.map('map').setView(fromCoords, 7);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const fromMarker = L.marker(fromCoords).addTo(map).bindPopup("From: " + fromAddress);
+      const toMarker = L.marker(toCoords).addTo(map).bindPopup("To: " + toAddress);
+
+      // Get route from OSRM
+      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${fromCoords[1]},${fromCoords[0]};${toCoords[1]},${toCoords[0]}?overview=full&geometries=geojson`;
+      const routeResponse = await fetch(routeUrl);
+      const routeData = await routeResponse.json();
+
+      if (routeData.routes.length > 0) {
+        const route = routeData.routes[0].geometry;
+        const routeLine = L.geoJSON(route, {
+          style: { color: "blue", weight: 4 }
+        }).addTo(map);
+        map.fitBounds(routeLine.getBounds());
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
